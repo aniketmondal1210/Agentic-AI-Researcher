@@ -27,12 +27,20 @@ tools = [arxiv_search, read_pdf, render_latex_pdf]
 tool_node = ToolNode(tools)
 
 
-# Step3: Setup LLM
+# Step3: Setup LLM — supports both .env (local) and st.secrets (Streamlit Cloud)
 from langchain_google_genai import ChatGoogleGenerativeAI
+
+def _get_api_key():
+    """Get API key from st.secrets (cloud) or .env (local)."""
+    try:
+        import streamlit as st
+        return st.secrets["GOOGLE_API_KEY"]
+    except Exception:
+        return os.getenv("GOOGLE_API_KEY")
 
 model = ChatGoogleGenerativeAI(
     model="gemini-3-flash-preview",
-    api_key=os.getenv("GOOGLE_API_KEY"),
+    api_key=_get_api_key(),
 )
 model = model.bind_tools(tools)
 
