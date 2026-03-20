@@ -1,19 +1,22 @@
 # 🔬 AI Research Agent
 
-An AI-powered research assistant that can browse papers on arXiv, read them in depth, perform research analysis, and generate ready-to-publish research papers — all through a conversational interface.
+An AI-powered research assistant that can browse papers on arXiv and Semantic Scholar, search the web, read papers in depth, perform research analysis, and generate ready-to-publish research papers — all through a conversational interface.
 
-Built with **Langgraph** (agentic workflows), **Gemini** (LLM), and **Streamlit** (frontend).
+Built with **Langgraph** (agentic workflows), **Gemini/Groq/OpenAI** (multi-LLM), and **Streamlit** (frontend).
 
 ---
 
 ## ✨ Features
 
-- 🔍 **arXiv Search** — Searches arXiv for the latest papers on any topic
+- 🔍 **arXiv Search** — Searches arXiv for the latest academic papers on any topic
+- 🎓 **Semantic Scholar** — Finds papers with citation counts and impact metrics
+- 🌐 **Web Search** — Searches the web via DuckDuckGo for blog posts, tutorials, and resources
 - 📖 **PDF Reader** — Downloads and extracts text from research papers
-- 📄 **LaTeX PDF Generator** — Writes publication-ready papers with mathematical equations and renders them as PDF
-- 🤖 **Conversational Agent** — ReAct agent that autonomously decides which tools to use
+- 📄 **LaTeX PDF Generator** — Writes publication-ready papers with mathematical equations
+- 🤖 **Multi-LLM Support** — Switch between Google Gemini, Groq (Llama), and OpenAI (GPT) from the sidebar
 - 🧠 **Memory** — Thread-based conversation persistence using MemorySaver
 - 💬 **Chat Interface** — Interactive Streamlit UI with real-time tool call visibility
+- 📤 **Export Options** — Download chat history as Markdown, Word (.docx), or JSON
 
 ---
 
@@ -21,10 +24,12 @@ Built with **Langgraph** (agentic workflows), **Gemini** (LLM), and **Streamlit*
 
 ```
 User ──► Streamlit Chat UI ──► Langgraph ReAct Agent ──► Tools
-                                      │                    ├── arXiv Search
-                                      │                    ├── PDF Reader
-                                      ▼                    └── LaTeX PDF Writer
-                                 Gemini LLM
+                │                      │                    ├── arXiv Search
+                │                      │                    ├── Semantic Scholar
+                │                      │                    ├── Web Search (DuckDuckGo)
+           LLM Selector               ▼                    ├── PDF Reader
+          (Gemini/Groq/          LLM Provider               └── LaTeX PDF Writer
+           OpenAI)
 ```
 
 The agent uses a **ReAct loop** (`agent ↔ tools`) with conditional edges:
@@ -37,15 +42,17 @@ The agent uses a **ReAct loop** (`agent ↔ tools`) with conditional edges:
 ## 📁 Project Structure
 
 ```
-├── .env.example          # API key template
+├── .env.example          # API key template (Gemini, Groq, OpenAI)
 ├── requirements.txt      # Python dependencies
 ├── app.py                # Streamlit chat-based frontend
 ├── agent/
 │   ├── __init__.py
-│   └── graph.py          # Langgraph workflow (State, ToolNode, ReAct agent)
+│   └── graph.py          # Langgraph workflow (multi-LLM, ReAct agent)
 ├── tools/
 │   ├── __init__.py
 │   ├── arxiv_tool.py     # arXiv paper search (raw API + XML parsing)
+│   ├── semantic_scholar.py  # Semantic Scholar search (citation metrics)
+│   ├── web_search.py     # DuckDuckGo web search
 │   ├── pdf_reader.py     # PDF text extraction (PyPDF2)
 │   └── pdf_writer.py     # LaTeX → PDF generation (tectonic)
 └── output/               # Generated PDFs stored here
@@ -80,13 +87,22 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit `.env` and add your Google Gemini API key:
+Edit `.env` and add your API key(s):
 
-```
-GOOGLE_API_KEY=your_api_key_here
+```env
+# Required — at least one LLM provider
+GOOGLE_API_KEY=your_gemini_key_here
+
+# Optional — for multi-LLM support
+GROQ_API_KEY=your_groq_key_here
+OPENAI_API_KEY=your_openai_key_here
 ```
 
-Get a free key from [Google AI Studio](https://aistudio.google.com/apikey).
+| Provider | Free Tier | Get API Key |
+|----------|-----------|-------------|
+| **Gemini** | ✅ Yes | [aistudio.google.com](https://aistudio.google.com/apikey) |
+| **Groq** | ✅ Yes (generous) | [console.groq.com](https://console.groq.com) |
+| **OpenAI** | ❌ Paid | [platform.openai.com](https://platform.openai.com/api-keys) |
 
 ### 5. Run the app
 
@@ -100,12 +116,13 @@ Open **http://localhost:8501** in your browser.
 
 ## 💬 How to Use
 
-1. **Enter a research topic** — e.g., "Transformer attention mechanisms"
-2. **Browse papers** — The agent searches arXiv and presents recent papers
-3. **Pick a paper** — Ask the agent to read a specific paper in depth
-4. **Discuss ideas** — The agent analyzes future research directions
-5. **Generate a paper** — Ask it to write and export a LaTeX research paper
-6. **Download PDF** — Download the generated paper from the sidebar
+1. **Choose your LLM** — Pick Gemini, Groq, or OpenAI from the sidebar
+2. **Enter a research topic** — e.g., "Transformer attention mechanisms"
+3. **Browse papers** — The agent searches arXiv, Semantic Scholar, and the web
+4. **Pick a paper** — Ask the agent to read a specific paper in depth
+5. **Discuss ideas** — The agent analyzes future research directions
+6. **Generate a paper** — Ask it to write and export a LaTeX research paper
+7. **Export** — Download the PDF, or export the chat as Markdown/Word/JSON
 
 ---
 
@@ -113,13 +130,14 @@ Open **http://localhost:8501** in your browser.
 
 | Component | Technology |
 |-----------|-----------|
-| **LLM** | Google Gemini (via `langchain-google-genai`) |
+| **LLM** | Google Gemini, Groq (Llama), OpenAI (GPT) |
 | **Agent Framework** | Langgraph (StateGraph, ToolNode, MemorySaver) |
-| **Paper Search** | arXiv API (raw HTTP + XML parsing) |
+| **Paper Search** | arXiv API, Semantic Scholar API |
+| **Web Search** | DuckDuckGo (no API key needed) |
 | **PDF Reading** | PyPDF2 |
 | **PDF Generation** | Tectonic (LaTeX compiler) |
+| **Chat Export** | Markdown, python-docx (Word), JSON |
 | **Frontend** | Streamlit |
-| **State Management** | Langgraph MemorySaver (thread-based) |
 
 ---
 

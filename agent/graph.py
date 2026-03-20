@@ -21,28 +21,59 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from tools.arxiv_tool import arxiv_search
 from tools.pdf_reader import read_pdf
 from tools.pdf_writer import render_latex_pdf
+from tools.web_search import web_search
+from tools.semantic_scholar import semantic_scholar_search
 from langgraph.prebuilt import ToolNode
 
-tools = [arxiv_search, read_pdf, render_latex_pdf]
+tools = [arxiv_search, read_pdf, render_latex_pdf, web_search, semantic_scholar_search]
 tool_node = ToolNode(tools)
 
 
-# Step3: Setup LLM — supports both .env (local) and st.secrets (Streamlit Cloud)
+# Step3: Setup LLM (supports multiple providers)
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-def _get_api_key():
-    """Get API key from st.secrets (cloud) or .env (local)."""
-    try:
-        import streamlit as st
-        return st.secrets["GOOGLE_API_KEY"]
-    except Exception:
-        return os.getenv("GOOGLE_API_KEY")
 
-model = ChatGoogleGenerativeAI(
-    model="gemini-3-flash-preview",
-    api_key=_get_api_key(),
-)
-model = model.bind_tools(tools)
+def get_model(provider: str = "gemini", model_name: str = None):
+    """Create an LLM instance based on the selected provider.
+
+    Args:
+        provider: One of 'gemini', 'groq', 'openai'
+        model_name: Optional model name override
+
+    Returns:
+        LLM instance bound with tools
+    """
+    if provider == "gemini":
+        name = model_name or "gemini-3-flash-preview"
+        model = ChatGoogleGenerativeAI(
+            model=name,
+            api_key=os.getenv("GOOGLE_API_KEY"),
+        )
+    elif provider == "groq":
+        from langchain_groq import ChatGroq
+
+        name = model_name or "llama-3.3-70b-versatile"
+        model = ChatGroq(
+            model=name,
+            api_key=os.getenv("GROQ_API_KEY"),
+        )
+    elif provider == "openai":
+        from langchain_openai import ChatOpenAI
+
+        name = model_name or "gpt-4o-mini"
+        model = ChatOpenAI(
+            model=name,
+            api_key=os.getenv("OPENAI_API_KEY"),
+        )
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    return model.bind_tools(tools)
+
+
+# Default model (can be overridden by frontend)
+_current_provider = os.getenv("LLM_PROVIDER", "gemini")
+model = get_model(_current_provider)
 
 
 # Step4: Setup Graph
@@ -65,6 +96,35 @@ def should_continue(state: State) -> Literal["tools", "__end__"]:
     return END
 
 
+def build_graph(provider: str = "gemini", model_name: str = None):
+    """Build and compile the agent graph with the specified LLM provider.
+
+    Args:
+        provider: One of 'gemini', 'groq', 'openai'
+        model_name: Optional model name override
+
+    Returns:
+        Compiled graph
+    """
+    global model
+    model = get_model(provider, model_name)
+
+    workflow = StateGraph(State)
+    workflow.add_node("agent", call_model)
+    workflow.add_node("tools", tool_node)
+    workflow.add_edge(START, "agent")
+    workflow.add_conditional_edges("agent", should_continue)
+    workflow.add_edge("tools", "agent")
+
+    from langgraph.checkpoint.memory import MemorySaver
+
+    checkpointer = MemorySaver()
+    return workflow.compile(checkpointer=checkpointer)
+
+
+# Build default graph
+from langgraph.checkpoint.memory import MemorySaver
+
 workflow = StateGraph(State)
 workflow.add_node("agent", call_model)
 workflow.add_node("tools", tool_node)
@@ -72,10 +132,7 @@ workflow.add_edge(START, "agent")
 workflow.add_conditional_edges("agent", should_continue)
 workflow.add_edge("tools", "agent")
 
-from langgraph.checkpoint.memory import MemorySaver
-
 checkpointer = MemorySaver()
-
 graph = workflow.compile(checkpointer=checkpointer)
 
 # Step5: System Prompt
@@ -87,8 +144,16 @@ electrical engineering and systems science, and economics.
 You are going to analyze recent research papers in one of these fields in
 order to identify promising new research directions and then write a new
 research paper. For research information or getting papers, ALWAYS use arxiv.org.
+You also have access to web search and Semantic Scholar for additional sources.
 You will use the tools provided to search for papers, read them, and write a new
 paper based on the ideas you find.
+
+Available tools:
+- arxiv_search: Search arXiv for academic papers
+- semantic_scholar_search: Search Semantic Scholar for papers with citation metrics
+- web_search: Search the web for additional information, blog posts, and resources
+- read_pdf: Read and extract text from PDF files
+- render_latex_pdf: Generate a LaTeX PDF document
 
 To start with, have a conversation with me in order to figure out what topic
 to research. Then tell me about some recently published papers with that topic.

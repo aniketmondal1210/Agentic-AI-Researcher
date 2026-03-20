@@ -5,12 +5,15 @@ A chat-based interface for the AI Research Agent powered by Langgraph.
 
 import sys
 import os
+import json
+import io
+from datetime import datetime
 
 # Add the project root to path
 sys.path.insert(0, os.path.dirname(__file__))
 
 import streamlit as st
-from agent.graph import INITIAL_PROMPT, graph
+from agent.graph import INITIAL_PROMPT, graph, build_graph
 from pathlib import Path
 import logging
 import uuid
@@ -94,18 +97,135 @@ if "pdf_path" not in st.session_state:
 if "thread_id" not in st.session_state:
     st.session_state.thread_id = str(uuid.uuid4())
 
-# Config for the agent (thread-based memory)
-config = {"configurable": {"thread_id": st.session_state.thread_id}}
+if "current_provider" not in st.session_state:
+    st.session_state.current_provider = "gemini"
+
+if "current_graph" not in st.session_state:
+    st.session_state.current_graph = graph
+
+
+# ─── Helper: Extract text from AIMessage content ───
+def extract_text(content):
+    """Extract clean text from AIMessage content (handles string and list formats)."""
+    if isinstance(content, str):
+        return content
+    elif isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block["text"])
+            elif isinstance(block, str):
+                parts.append(block)
+        return "\n".join(parts)
+    return str(content)
+
+
+# ─── Helper: Export chat to Markdown ───
+def export_chat_markdown():
+    """Export chat history as a Markdown string."""
+    lines = [f"# AI Research Agent — Chat Export\n"]
+    lines.append(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+    lines.append(f"**Session:** {st.session_state.thread_id[:8]}\n\n---\n")
+    for msg in st.session_state.chat_history:
+        role = "🧑 User" if msg["role"] == "user" else "🤖 Assistant"
+        lines.append(f"### {role}\n\n{msg['content']}\n\n---\n")
+    return "\n".join(lines)
+
+
+# ─── Helper: Export chat to Word ───
+def export_chat_docx():
+    """Export chat history as a .docx file."""
+    from docx import Document
+    from docx.shared import Pt, RGBColor
+
+    doc = Document()
+
+    # Title
+    title = doc.add_heading("AI Research Agent — Chat Export", level=0)
+    doc.add_paragraph(
+        f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')} | "
+        f"Session: {st.session_state.thread_id[:8]}"
+    )
+    doc.add_paragraph("")  # spacer
+
+    for msg in st.session_state.chat_history:
+        role = msg["role"]
+        content = msg["content"]
+
+        # Role heading
+        heading = doc.add_heading(
+            "User" if role == "user" else "Assistant", level=2
+        )
+        run = heading.runs[0]
+        run.font.color.rgb = RGBColor(50, 50, 150) if role == "user" else RGBColor(0, 128, 80)
+
+        # Content
+        para = doc.add_paragraph(content)
+        para.style.font.size = Pt(11)
+
+        doc.add_paragraph("")  # spacer
+
+    # Save to bytes
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
 
 # ─── Sidebar ───
 with st.sidebar:
     st.markdown("## 🧠 Research Agent")
     st.markdown("---")
 
+    # ── LLM Provider Selector ──
+    st.markdown("### 🤖 LLM Provider")
+    provider_options = {
+        "gemini": "🔷 Google Gemini",
+        "groq": "🟢 Groq (Llama)",
+        "openai": "🟠 OpenAI (GPT)",
+    }
+    selected_provider = st.selectbox(
+        "Choose LLM",
+        options=list(provider_options.keys()),
+        format_func=lambda x: provider_options[x],
+        index=list(provider_options.keys()).index(st.session_state.current_provider),
+        label_visibility="collapsed",
+    )
+
+    # Model name override
+    default_models = {
+        "gemini": "gemini-3-flash-preview",
+        "groq": "llama-3.3-70b-versatile",
+        "openai": "gpt-4o-mini",
+    }
+    model_name = st.text_input(
+        "Model name",
+        value=default_models[selected_provider],
+        help="Override the default model for the selected provider",
+    )
+
+    # Rebuild graph if provider changed
+    if selected_provider != st.session_state.current_provider:
+        try:
+            st.session_state.current_graph = build_graph(selected_provider, model_name)
+            st.session_state.current_provider = selected_provider
+            st.success(f"Switched to {provider_options[selected_provider]}")
+        except Exception as e:
+            st.error(f"Failed to switch: {str(e)}")
+
+    st.markdown("---")
+
     if st.button("🔄 New Session", use_container_width=True):
         st.session_state.chat_history = []
         st.session_state.pdf_path = None
         st.session_state.thread_id = str(uuid.uuid4())
+        # Rebuild graph for new session (fresh memory)
+        try:
+            st.session_state.current_graph = build_graph(
+                st.session_state.current_provider, model_name
+            )
+        except Exception:
+            pass
         st.rerun()
 
     st.markdown(f"**Session:** `{st.session_state.thread_id[:8]}...`")
@@ -113,7 +233,9 @@ with st.sidebar:
 
     st.markdown("### 🛠️ Agent Tools")
     st.markdown("""
-    - 🔍 **arXiv Search** — Find papers
+    - 🔍 **arXiv Search** — Academic papers
+    - 🎓 **Semantic Scholar** — Citations & metrics
+    - 🌐 **Web Search** — Blogs & resources
     - 📖 **PDF Reader** — Extract text
     - 📄 **LaTeX PDF** — Generate papers
     """)
@@ -121,14 +243,66 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📋 How to Use")
     st.markdown("""
-    1. Tell the agent your research topic
-    2. Browse the papers it finds
-    3. Pick a paper to read in depth
-    4. Discuss future research ideas
+    1. Choose your LLM provider above
+    2. Tell the agent your research topic
+    3. Browse papers it finds
+    4. Pick a paper to read in depth
     5. Ask it to write & export a paper
     """)
 
-    # Check for generated PDFs
+    # ── Export Section ──
+    if st.session_state.chat_history:
+        st.markdown("---")
+        st.markdown("### 📤 Export Chat")
+
+        col1, col2 = st.columns(2)
+
+        # Markdown export
+        with col1:
+            md_content = export_chat_markdown()
+            st.download_button(
+                label="📝 Markdown",
+                data=md_content,
+                file_name=f"research_chat_{st.session_state.thread_id[:8]}.md",
+                mime="text/markdown",
+                use_container_width=True,
+            )
+
+        # JSON export (chat history download)
+        with col2:
+            json_content = json.dumps(
+                {
+                    "session_id": st.session_state.thread_id,
+                    "timestamp": datetime.now().isoformat(),
+                    "provider": st.session_state.current_provider,
+                    "messages": st.session_state.chat_history,
+                },
+                indent=2,
+            )
+            st.download_button(
+                label="📋 JSON",
+                data=json_content,
+                file_name=f"research_chat_{st.session_state.thread_id[:8]}.json",
+                mime="application/json",
+                use_container_width=True,
+            )
+
+        # Word export
+        try:
+            docx_bytes = export_chat_docx()
+            st.download_button(
+                label="📄 Download as Word (.docx)",
+                data=docx_bytes,
+                file_name=f"research_chat_{st.session_state.thread_id[:8]}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
+            )
+        except ImportError:
+            st.caption("Install `python-docx` for Word export")
+        except Exception as e:
+            st.caption(f"Word export error: {e}")
+
+    # ── Generated PDFs ──
     output_dir = Path("output")
     if output_dir.exists():
         pdf_files = list(output_dir.glob("*.pdf"))
@@ -150,7 +324,7 @@ with st.sidebar:
 st.markdown("""
 <div class="main-header">
     <h1>📄 AI Research Agent</h1>
-    <p>Conversational AI that searches arXiv, reads papers, and writes publication-ready research</p>
+    <p>Conversational AI that searches arXiv, Semantic Scholar & the web — then writes publication-ready research</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -178,14 +352,19 @@ if user_input:
     }
     logger.info("Starting agent processing...")
 
+    # Config for thread-based memory
+    config = {"configurable": {"thread_id": st.session_state.thread_id}}
+
     # Stream agent response
     full_response = ""
     with st.spinner("🤖 Agent is thinking..."):
         try:
-            for s in graph.stream(chat_input, config, stream_mode="values"):
+            for s in st.session_state.current_graph.stream(
+                chat_input, config, stream_mode="values"
+            ):
                 message = s["messages"][-1]
 
-                # Handle tool calls (log only)
+                # Handle tool calls (log and show)
                 if getattr(message, "tool_calls", None):
                     for tool_call in message.tool_calls:
                         logger.info(f"Tool call: {tool_call['name']}")
@@ -196,20 +375,7 @@ if user_input:
 
                 # Handle assistant response
                 if isinstance(message, AIMessage) and message.content:
-                    # Handle both string and list-of-blocks format (Gemini 3)
-                    if isinstance(message.content, str):
-                        text_content = message.content
-                    elif isinstance(message.content, list):
-                        # Extract text from content blocks
-                        parts = []
-                        for block in message.content:
-                            if isinstance(block, dict) and block.get("type") == "text":
-                                parts.append(block["text"])
-                            elif isinstance(block, str):
-                                parts.append(block)
-                        text_content = "\n".join(parts)
-                    else:
-                        text_content = str(message.content)
+                    text_content = extract_text(message.content)
                     full_response = text_content
 
             # Display final response
