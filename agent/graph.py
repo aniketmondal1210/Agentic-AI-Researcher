@@ -24,9 +24,17 @@ from tools.pdf_writer import render_latex_pdf
 from tools.web_search import web_search
 from tools.semantic_scholar import semantic_scholar_search
 from tools.summarizer import summarize_paper
+from tools.rag_store import store_paper_in_rag, query_rag_store
+from tools.quality_scorer import score_paper_quality
+from tools.literature_table import generate_literature_table
 from langgraph.prebuilt import ToolNode
 
-tools = [arxiv_search, read_pdf, render_latex_pdf, web_search, semantic_scholar_search, summarize_paper]
+tools = [
+    arxiv_search, read_pdf, render_latex_pdf, web_search,
+    semantic_scholar_search, summarize_paper,
+    store_paper_in_rag, query_rag_store,
+    score_paper_quality, generate_literature_table,
+]
 tool_node = ToolNode(tools)
 
 
@@ -154,7 +162,18 @@ Available tools:
 - semantic_scholar_search: Search Semantic Scholar for papers with citation metrics
 - web_search: Search the web for additional information, blog posts, and resources
 - read_pdf: Read and extract text from PDF files
+- summarize_paper: Generate structured paper summaries
+- store_paper_in_rag: Store paper content in the knowledge base for later retrieval
+- query_rag_store: Search the knowledge base for relevant content from previously read papers
+- score_paper_quality: Evaluate a paper's quality on academic criteria
+- generate_literature_table: Create a comparison table of multiple papers
 - render_latex_pdf: Generate a LaTeX PDF document
+
+IMPORTANT WORKFLOW:
+1. When you read a paper with read_pdf, ALWAYS store it in RAG with store_paper_in_rag too.
+2. When writing a paper, use query_rag_store to find relevant quotes and evidence.
+3. After writing, use score_paper_quality to evaluate the output.
+4. When comparing multiple papers, use generate_literature_table.
 
 To start with, have a conversation with me in order to figure out what topic
 to research. Then tell me about some recently published papers with that topic.
@@ -171,3 +190,4 @@ render it as a LaTeX PDF. Make sure that the TEX file is correct and there is
 no error in it so that the PDF is easily exported. When you give papers
 references, always attach the pdf links to the paper.
 """
+

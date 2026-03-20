@@ -27,6 +27,9 @@ from tools.pdf_writer import render_latex_pdf
 from tools.web_search import web_search
 from tools.semantic_scholar import semantic_scholar_search
 from tools.summarizer import summarize_paper
+from tools.rag_store import store_paper_in_rag, query_rag_store
+from tools.quality_scorer import score_paper_quality
+from tools.literature_table import generate_literature_table
 
 
 # ─── State ───
@@ -38,8 +41,8 @@ class MultiAgentState(TypedDict):
 
 # ─── Tool Groups ───
 search_tools = [arxiv_search, semantic_scholar_search, web_search]
-reader_tools = [read_pdf, summarize_paper]
-writer_tools = [render_latex_pdf]
+reader_tools = [read_pdf, summarize_paper, store_paper_in_rag, query_rag_store]
+writer_tools = [render_latex_pdf, query_rag_store, score_paper_quality, generate_literature_table]
 all_tools = search_tools + reader_tools + writer_tools
 
 search_tool_node = ToolNode(search_tools)
@@ -85,27 +88,35 @@ READER_AGENT_PROMPT = """You are a research paper reading specialist. Your exper
 You have access to these tools:
 - read_pdf: Read and extract text from a PDF URL
 - summarize_paper: Generate a structured summary of paper content
+- store_paper_in_rag: Store paper content in knowledge base for later retrieval
+- query_rag_store: Search knowledge base for relevant content
 
 When reading papers:
 1. Extract the key findings, methodology, and contributions
-2. Identify limitations and future research directions
-3. Highlight mathematical formulations or novel techniques
-4. Provide a clear, organized analysis of the paper
-5. Suggest how this paper connects to the broader research landscape"""
+2. ALWAYS store the paper content using store_paper_in_rag after reading
+3. Identify limitations and future research directions
+4. Highlight mathematical formulations or novel techniques
+5. Provide a clear, organized analysis of the paper
+6. Suggest how this paper connects to the broader research landscape"""
 
 WRITER_AGENT_PROMPT = """You are a research paper writing specialist. Your expertise is composing academic papers.
 
 You have access to:
 - render_latex_pdf: Compile LaTeX content into a PDF
+- query_rag_store: Search knowledge base for relevant quotes and evidence
+- score_paper_quality: Evaluate paper quality on academic criteria
+- generate_literature_table: Create comparison tables of multiple papers
 
 When writing papers:
-1. Structure the paper with: Abstract, Introduction, Literature Review, Methodology, Results/Discussion, Conclusion, References
-2. Include mathematical equations where appropriate
-3. Cite source papers properly with PDF links
-4. Write in formal academic English
-5. Generate complete, valid LaTeX code
-6. Make sure the LaTeX compiles without errors
-7. Use proper LaTeX packages for formatting"""
+1. First use query_rag_store to find relevant content from previously read papers
+2. Structure the paper with: Abstract, Introduction, Literature Review, Methodology, Results/Discussion, Conclusion, References
+3. Include mathematical equations where appropriate
+4. Cite source papers properly with PDF links
+5. Write in formal academic English
+6. Generate complete, valid LaTeX code
+7. Make sure the LaTeX compiles without errors
+8. After writing, use score_paper_quality to evaluate the output
+9. Use generate_literature_table when comparing multiple papers"""
 
 REVIEWER_PROMPT = """You are a senior academic reviewer. Review the research paper content and provide:
 1. Strengths and weaknesses

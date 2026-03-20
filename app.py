@@ -84,19 +84,9 @@ def check_auth():
         import streamlit_authenticator as stauth
 
         # Load auth config
-        config_path = Path(__file__).parent / "auth_config.yaml"
-        if not config_path.exists():
-            return True  # No auth config, skip auth
+        config_path = str(Path(__file__).parent / "auth_config.yaml")
 
-        with open(config_path) as f:
-            config = yaml.safe_load(f)
-
-        authenticator = stauth.Authenticate(
-            config["credentials"],
-            config["cookie"]["name"],
-            config["cookie"]["key"],
-            config["cookie"]["expiry_days"],
-        )
+        authenticator = stauth.Authenticate(config_path)
 
         authenticator.login(location="main")
 
@@ -371,10 +361,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ─── Tabs ───
-tab_chat, tab_citations = st.tabs(["💬 Chat", "🔗 Citation Graph"])
+tab_chat, tab_citations, tab_knowledge, tab_lit_review = st.tabs(
+    ["💬 Chat", "🔗 Citation Graph", "🧠 Knowledge Base", "📊 Literature Review"]
+)
 
 # ═══════════════════════════════════════════
-#  TAB 1: Chat
+#  TAB 1: Chat (with Human-in-the-Loop)
 # ═══════════════════════════════════════════
 with tab_chat:
     # Show agent mode badge
@@ -386,6 +378,49 @@ with tab_chat:
             "<span class='agent-badge writer'>✍️ Writer</span>",
             unsafe_allow_html=True,
         )
+
+    # ── Human-in-the-Loop Controls ──
+    if "hitl_enabled" not in st.session_state:
+        st.session_state.hitl_enabled = False
+    if "hitl_pending" not in st.session_state:
+        st.session_state.hitl_pending = None
+
+    with st.expander("🔧 Human-in-the-Loop Settings", expanded=False):
+        st.session_state.hitl_enabled = st.toggle(
+            "Enable approval checkpoints",
+            value=st.session_state.hitl_enabled,
+            help="When enabled, the agent will pause for your approval before writing or generating PDFs.",
+        )
+        if st.session_state.hitl_enabled:
+            st.info("✅ The agent will ask for your approval before: writing papers, generating PDFs, and scoring quality.")
+
+    # Show pending approval if any
+    if st.session_state.hitl_pending:
+        st.warning("⏸️ **Approval Required**")
+        st.markdown(f"The agent wants to: **{st.session_state.hitl_pending['action']}**")
+        if st.session_state.hitl_pending.get("details"):
+            with st.expander("View details"):
+                st.markdown(st.session_state.hitl_pending["details"])
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("✅ Approve", use_container_width=True, type="primary"):
+                # Add approval to chat and continue
+                st.session_state.chat_history.append(
+                    {"role": "user", "content": f"Approved: {st.session_state.hitl_pending['action']}. Go ahead."}
+                )
+                st.session_state.hitl_pending = None
+                st.rerun()
+        with col2:
+            if st.button("✏️ Modify", use_container_width=True):
+                st.session_state.hitl_pending = None
+                st.rerun()
+        with col3:
+            if st.button("❌ Reject", use_container_width=True):
+                st.session_state.chat_history.append(
+                    {"role": "user", "content": f"Rejected: {st.session_state.hitl_pending['action']}. Please try a different approach."}
+                )
+                st.session_state.hitl_pending = None
+                st.rerun()
 
     # Display chat history
     for msg in st.session_state.chat_history:
@@ -406,13 +441,20 @@ with tab_chat:
             else INITIAL_PROMPT
         )
 
+        # Add HITL instructions if enabled
+        if st.session_state.hitl_enabled:
+            system_prompt += (
+                "\n\nIMPORTANT: Before writing a paper or generating a PDF, "
+                "first describe your plan and ASK THE USER FOR APPROVAL. "
+                "Present an outline of what you plan to write and wait for the user to confirm."
+            )
+
         chat_input_data = {
             "messages": [
                 {"role": "system", "content": system_prompt}
             ] + st.session_state.chat_history
         }
 
-        # Add multi-agent state fields if needed
         if st.session_state.agent_mode == "multi":
             chat_input_data["current_agent"] = ""
             chat_input_data["task_complete"] = False
@@ -427,16 +469,23 @@ with tab_chat:
                 ):
                     message = s["messages"][-1]
 
-                    # Show tool calls
                     if getattr(message, "tool_calls", None):
                         for tc in message.tool_calls:
                             logger.info(f"Tool call: {tc['name']}")
+
+                            # HITL: Pause for approval on critical tools
+                            if (st.session_state.hitl_enabled and
+                                    tc["name"] in ("render_latex_pdf", "score_paper_quality")):
+                                st.session_state.hitl_pending = {
+                                    "action": f"Use {tc['name']}",
+                                    "details": f"Tool: {tc['name']}\nArgs: {json.dumps(tc.get('args', {}), indent=2)[:500]}",
+                                }
+
                             st.markdown(
                                 f"<div class='tool-call-box'>🔧 Using tool: <b>{tc['name']}</b></div>",
                                 unsafe_allow_html=True,
                             )
 
-                    # Show agent routing (multi-agent mode)
                     if "current_agent" in s and s["current_agent"]:
                         agent_name = s["current_agent"]
                         badge_class = {
@@ -451,7 +500,6 @@ with tab_chat:
                             unsafe_allow_html=True,
                         )
 
-                    # Capture assistant response
                     if isinstance(message, AIMessage) and message.content:
                         text_content = extract_text(message.content)
                         if text_content.strip():
@@ -495,7 +543,6 @@ with tab_citations:
         "Enter paper titles below or auto-extract from the chat."
     )
 
-    # Auto-extract titles from chat
     auto_titles = extract_paper_titles_from_chat()
 
     col1, col2 = st.columns([3, 1])
@@ -507,11 +554,10 @@ with tab_citations:
             placeholder="Enter paper titles, one per line...",
         )
     with col2:
-        st.markdown("")  # Spacer
+        st.markdown("")
         st.markdown("")
         build_btn = st.button("🔍 Build Graph", use_container_width=True, type="primary")
 
-    # Legend
     st.markdown(
         "<div>"
         "<span class='legend-item' style='background:rgba(231,76,60,0.2);color:#e74c3c;'>● Main Papers</span>"
@@ -523,7 +569,6 @@ with tab_citations:
 
     if build_btn and paper_input.strip():
         titles = [t.strip() for t in paper_input.strip().split("\n") if t.strip()]
-
         if titles:
             with st.spinner("⏳ Fetching citation data from Semantic Scholar..."):
                 try:
@@ -535,3 +580,101 @@ with tab_citations:
             st.warning("Please enter at least one paper title.")
     elif build_btn:
         st.warning("Please enter paper titles first.")
+
+
+# ═══════════════════════════════════════════
+#  TAB 3: Knowledge Base (RAG)
+# ═══════════════════════════════════════════
+with tab_knowledge:
+    st.markdown("### 🧠 Knowledge Base (RAG Vector Store)")
+    st.markdown("Papers read by the agent are stored here for semantic search.")
+
+    try:
+        from tools.rag_store import get_rag_stats
+
+        stats = get_rag_stats()
+
+        # Stats cards
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("📄 Papers Indexed", stats["total_papers"])
+        with col2:
+            st.metric("🧩 Total Chunks", stats["total_chunks"])
+
+        if stats["paper_titles"]:
+            st.markdown("#### 📚 Indexed Papers")
+            for title in stats["paper_titles"]:
+                st.markdown(f"- {title}")
+
+        # Query interface
+        st.markdown("---")
+        st.markdown("#### 🔍 Search Knowledge Base")
+        rag_query = st.text_input(
+            "Search query",
+            placeholder="Search for specific concepts, methods, or findings...",
+            key="rag_query_input",
+        )
+
+        if rag_query:
+            from tools.rag_store import query_rag_store
+
+            with st.spinner("Searching knowledge base..."):
+                results = query_rag_store.invoke({"query": rag_query, "n_results": 5})
+                st.markdown(results)
+
+    except ImportError:
+        st.warning("ChromaDB not installed. Run: `pip install chromadb`")
+    except Exception as e:
+        st.info(f"Knowledge base is empty. Start chatting with the agent and ask it to read papers!")
+
+
+# ═══════════════════════════════════════════
+#  TAB 4: Literature Review Table
+# ═══════════════════════════════════════════
+with tab_lit_review:
+    st.markdown("### 📊 Automated Literature Review Table")
+    st.markdown(
+        "Enter information about multiple papers to generate a structured comparison table. "
+        "You can also ask the agent in the chat tab to generate one."
+    )
+
+    lit_input = st.text_area(
+        "Paper information",
+        height=200,
+        placeholder=(
+            "Paste paper details here. For each paper include:\n"
+            "- Title\n- Authors\n- Year\n- Methodology\n"
+            "- Key findings\n- Dataset used\n\n"
+            "Or simply paste the text from multiple paper abstracts."
+        ),
+        key="lit_review_input",
+    )
+
+    if st.button("📊 Generate Table", use_container_width=False, type="primary"):
+        if lit_input.strip():
+            with st.spinner("🤖 Generating literature review table..."):
+                try:
+                    from tools.literature_table import generate_literature_table
+
+                    prompt = generate_literature_table.invoke({"papers_info": lit_input})
+
+                    # Use the current LLM to generate the table
+                    from agent.graph import get_model
+                    llm = get_model(st.session_state.current_provider)
+                    response = llm.invoke(prompt)
+
+                    table_content = extract_text(response.content)
+                    st.markdown(table_content)
+
+                    # Download as markdown
+                    st.download_button(
+                        "📥 Download Table (Markdown)",
+                        table_content,
+                        "literature_review_table.md",
+                        "text/markdown",
+                    )
+                except Exception as e:
+                    st.error(f"Error generating table: {str(e)}")
+        else:
+            st.warning("Please enter paper information first.")
+
