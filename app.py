@@ -159,7 +159,9 @@ def export_chat_docx():
         )
         run = heading.runs[0]
         run.font.color.rgb = RGBColor(50, 50, 150) if msg["role"] == "user" else RGBColor(0, 128, 80)
-        doc.add_paragraph(msg["content"]).style.font.size = Pt(11)
+        para = doc.add_paragraph(msg["content"])
+        for run in para.runs:
+            run.font.size = Pt(11)
 
     buffer = io.BytesIO()
     doc.save(buffer)
@@ -658,9 +660,9 @@ with tab_lit_review:
 
                     prompt = generate_literature_table.invoke({"papers_info": lit_input})
 
-                    # Use the current LLM to generate the table
+                    # Use the current LLM to generate the table (without tool binding)
                     from agent.graph import get_model
-                    llm = get_model(st.session_state.current_provider)
+                    llm = get_model(st.session_state.current_provider, bind=False)
                     response = llm.invoke(prompt)
 
                     table_content = extract_text(response.content)

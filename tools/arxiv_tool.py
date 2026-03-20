@@ -5,11 +5,9 @@ import requests
 def search_arxiv_papers(topic: str, max_results: int = 5) -> dict:
     """Search arXiv API for papers on the given topic."""
     query = "+".join(topic.lower().split())
-    # Remove invalid characters from query
-    for char in list('()" '):
-        if char in query:
-            print(f"Invalid character '{char}' in query: {query}")
-            raise ValueError(f"Cannot have character: '{char}' in query: {query}")
+    # Remove invalid characters from query (arXiv API doesn't accept these)
+    for char in ['"', "'", '(', ')', '{', '}', '[', ']']:
+        query = query.replace(char, "")
 
     url = (
         "http://export.arxiv.org/api/query"
@@ -60,10 +58,11 @@ def parse_arxiv_xml(xml_content: str) -> dict:
                 pdf_link = link.attrib.get("href")
                 break
 
+        summary_text = entry.findtext("atom:summary", namespaces=ns)
         entries.append(
             {
-                "title": entry.findtext("atom:title", namespaces=ns),
-                "summary": entry.findtext("atom:summary", namespaces=ns).strip(),
+                "title": (entry.findtext("atom:title", namespaces=ns) or "Untitled").strip(),
+                "summary": (summary_text or "No summary available").strip(),
                 "authors": authors,
                 "categories": categories,
                 "pdf": pdf_link,
@@ -89,9 +88,13 @@ def arxiv_search(topic: str) -> list[dict]:
     """
     print("ARXIV Agent called")
     print(f"Searching arXiv for papers about: {topic}")
-    papers = search_arxiv_papers(topic)
-    if len(papers) == 0:
-        print(f"No papers found for topic: {topic}")
-        raise ValueError(f"No papers found for topic: {topic}")
-    print(f"Found {len(papers['entries'])} papers about {topic}")
-    return papers
+    try:
+        papers = search_arxiv_papers(topic)
+        entries = papers.get("entries", [])
+        if len(entries) == 0:
+            return {"entries": [], "message": f"No papers found for topic: {topic}"}
+        print(f"Found {len(entries)} papers about {topic}")
+        return papers
+    except Exception as e:
+        print(f"arXiv search error: {str(e)}")
+        return {"entries": [], "message": f"Error searching arXiv: {str(e)}"}

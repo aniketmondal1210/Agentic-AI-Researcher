@@ -42,15 +42,16 @@ tool_node = ToolNode(tools)
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 
-def get_model(provider: str = "gemini", model_name: str = None):
+def get_model(provider: str = "gemini", model_name: str = None, bind: bool = True):
     """Create an LLM instance based on the selected provider.
 
     Args:
         provider: One of 'gemini', 'groq', 'openai'
         model_name: Optional model name override
+        bind: Whether to bind tools to the model (default True)
 
     Returns:
-        LLM instance bound with tools
+        LLM instance, optionally bound with tools
     """
     if provider == "gemini":
         name = model_name or "gemini-3-flash-preview"
@@ -77,7 +78,7 @@ def get_model(provider: str = "gemini", model_name: str = None):
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 
-    return model.bind_tools(tools)
+    return model.bind_tools(tools) if bind else model
 
 
 # Default model (can be overridden by frontend)
