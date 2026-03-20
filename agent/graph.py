@@ -23,9 +23,10 @@ from tools.pdf_reader import read_pdf
 from tools.pdf_writer import render_latex_pdf
 from tools.web_search import web_search
 from tools.semantic_scholar import semantic_scholar_search
+from tools.summarizer import summarize_paper
 from langgraph.prebuilt import ToolNode
 
-tools = [arxiv_search, read_pdf, render_latex_pdf, web_search, semantic_scholar_search]
+tools = [arxiv_search, read_pdf, render_latex_pdf, web_search, semantic_scholar_search, summarize_paper]
 tool_node = ToolNode(tools)
 
 

@@ -1,0 +1,12 @@
+credentials:
+  usernames:
+    admin:
+      name: Admin User
+      password: $2b$12$KIXQcNddS2dG7GHvp3M.muIJ/F6T7Vj3VEDPmM5Ry3lS3Ix5cqXu  # admin123
+    researcher:
+      name: Researcher
+      password: $2b$12$RYwHr7K3Rz3s8bMwNB3TmeKfPwGK7J0B6u2lLwMKnY5G.3Z3eMVMa  # research123
+cookie:
+  expiry_days: 30
+  key: ai_researcher_auth_key_2024
+  name: ai_researcher_cookie
