@@ -592,6 +592,86 @@ with st.sidebar:
     st.markdown(f"**Session:** `{st.session_state.thread_id[:8]}...`")
     st.markdown("---")
 
+    # ── Upload Research Papers ──
+    st.markdown("### 📎 Upload Papers")
+    st.caption("Upload up to 6 PDFs — the agent can reference them")
+
+    if "uploaded_papers" not in st.session_state:
+        st.session_state.uploaded_papers = []
+
+    uploaded_files = st.file_uploader(
+        "Drop PDFs here",
+        type=["pdf"],
+        accept_multiple_files=True,
+        key="pdf_uploader",
+        label_visibility="collapsed",
+    )
+
+    if uploaded_files:
+        # Limit to 6
+        if len(uploaded_files) > 6:
+            st.warning("⚠️ Maximum 6 papers allowed. Only the first 6 will be processed.")
+            uploaded_files = uploaded_files[:6]
+
+        new_files = [
+            f for f in uploaded_files
+            if f.name not in st.session_state.uploaded_papers
+        ]
+
+        if new_files:
+            for uploaded_file in new_files:
+                with st.spinner(f"📄 Indexing: {uploaded_file.name}..."):
+                    try:
+                        import PyPDF2
+
+                        pdf_reader = PyPDF2.PdfReader(uploaded_file)
+                        text = ""
+                        for page in pdf_reader.pages:
+                            page_text = page.extract_text()
+                            if page_text:
+                                text += page_text + "\n"
+
+                        text = text.strip()
+                        if not text:
+                            st.warning(f"⚠️ Could not extract text from {uploaded_file.name}")
+                            continue
+
+                        # Truncate very long papers
+                        if len(text) > 80000:
+                            text = text[:80000]
+
+                        # Store in RAG
+                        from tools.rag_store import store_paper_in_rag
+                        paper_title = uploaded_file.name.replace(".pdf", "").replace("_", " ").replace("-", " ")
+                        result = store_paper_in_rag.invoke({
+                            "paper_text": text,
+                            "paper_title": paper_title,
+                            "paper_url": f"uploaded:{uploaded_file.name}",
+                        })
+
+                        st.session_state.uploaded_papers.append(uploaded_file.name)
+                        logger.info(f"Indexed uploaded paper: {uploaded_file.name} ({len(text)} chars)")
+
+                    except Exception as e:
+                        st.error(f"❌ Error processing {uploaded_file.name}: {str(e)}")
+
+            if new_files:
+                st.success(f"✅ {len(new_files)} paper(s) added to knowledge base!")
+                st.rerun()
+
+    # Show indexed uploads
+    if st.session_state.uploaded_papers:
+        for name in st.session_state.uploaded_papers:
+            st.markdown(
+                f"<div class='info-card'><h4>📄 {name}</h4><p>Indexed in knowledge base</p></div>",
+                unsafe_allow_html=True,
+            )
+        if st.button("🗑️ Clear Uploads", use_container_width=True):
+            st.session_state.uploaded_papers = []
+            st.rerun()
+
+    st.markdown("---")
+
     # ── Tools Info ──
     st.markdown("### 🛠️ Agent Tools")
     if agent_mode == "multi":
@@ -756,6 +836,15 @@ with tab_chat:
                 "\n\nIMPORTANT: Before writing a paper or generating a PDF, "
                 "first describe your plan and ASK THE USER FOR APPROVAL. "
                 "Present an outline of what you plan to write and wait for the user to confirm."
+            )
+
+        # Add uploaded papers context
+        if st.session_state.get("uploaded_papers"):
+            papers_list = ", ".join(st.session_state.uploaded_papers)
+            system_prompt += (
+                f"\n\nThe user has uploaded these research papers to the knowledge base: {papers_list}. "
+                "You can use query_rag_store to search through their content and reference them. "
+                "When the user asks about these papers, always query the knowledge base first."
             )
 
         chat_input_data = {
