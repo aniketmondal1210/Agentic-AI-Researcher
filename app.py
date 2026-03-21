@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 # ─── Page Configuration ───
 st.set_page_config(
     page_title="AI Research Agent",
-    page_icon="📄",
+    page_icon="🔬",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -39,40 +39,350 @@ st.set_page_config(
 # ─── Custom CSS ───
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    .stApp { font-family: 'Inter', sans-serif; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
+    /* ── Base ── */
+    .stApp {
+        font-family: 'Inter', sans-serif;
+        background: linear-gradient(160deg, #06060f 0%, #0a0a1a 40%, #0d0d24 100%);
+    }
+
+    /* ── Animated Header ── */
     .main-header {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-        padding: 2rem; border-radius: 16px; margin-bottom: 1.5rem; text-align: center;
-        border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        background: linear-gradient(135deg, #0f0c29 0%, #1a1a4e 35%, #24243e 65%, #0f0c29 100%);
+        background-size: 300% 300%;
+        animation: headerShift 8s ease infinite;
+        padding: 2.5rem 2rem;
+        border-radius: 20px;
+        margin-bottom: 1.8rem;
+        text-align: center;
+        border: 1px solid rgba(108, 92, 231, 0.2);
+        box-shadow: 0 0 40px rgba(108, 92, 231, 0.08), 0 8px 32px rgba(0,0,0,0.4);
+        position: relative;
+        overflow: hidden;
     }
-    .main-header h1 { color: #e0e0ff; font-size: 2.2rem; font-weight: 700; margin: 0; }
-    .main-header p { color: #8888bb; font-size: 1rem; margin-top: 0.4rem; font-weight: 300; }
+    .main-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle at 30% 50%, rgba(108,92,231,0.06) 0%, transparent 50%),
+                    radial-gradient(circle at 70% 50%, rgba(0,184,148,0.04) 0%, transparent 50%);
+        animation: headerGlow 6s ease-in-out infinite alternate;
+    }
+    @keyframes headerShift {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+    }
+    @keyframes headerGlow {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(5deg); }
+    }
+    .main-header h1 {
+        color: #ffffff;
+        font-size: 2.4rem;
+        font-weight: 800;
+        margin: 0;
+        position: relative;
+        letter-spacing: -0.02em;
+        background: linear-gradient(135deg, #ffffff 0%, #a29bfe 50%, #6c5ce7 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    .main-header p {
+        color: #8888bb;
+        font-size: 1.05rem;
+        margin-top: 0.5rem;
+        font-weight: 300;
+        position: relative;
+        letter-spacing: 0.01em;
+    }
 
+    /* ── Sidebar ── */
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #08081a 0%, #0e0e28 40%, #12123a 100%);
+        border-right: 1px solid rgba(108, 92, 231, 0.1);
+    }
+    section[data-testid="stSidebar"] .stMarkdown h2 {
+        background: linear-gradient(90deg, #a29bfe, #6c5ce7);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-weight: 700;
+    }
+    section[data-testid="stSidebar"] .stMarkdown h3 {
+        color: #7c7ca0;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 600;
+    }
+
+    /* ── Tabs ── */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 4px;
+        background: rgba(15, 15, 35, 0.6);
+        border-radius: 14px;
+        padding: 4px;
+        border: 1px solid rgba(108, 92, 231, 0.1);
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 10px;
+        padding: 0.6rem 1.2rem;
+        font-weight: 500;
+        font-size: 0.9rem;
+        color: #8888aa;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #c0c0e0;
+        background: rgba(108, 92, 231, 0.08);
+    }
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, rgba(108, 92, 231, 0.2), rgba(162, 155, 254, 0.15)) !important;
+        color: #a29bfe !important;
+        border: 1px solid rgba(108, 92, 231, 0.3) !important;
+        box-shadow: 0 0 12px rgba(108, 92, 231, 0.1);
+    }
+    .stTabs [data-baseweb="tab-highlight"] {
+        display: none;
+    }
+
+    /* ── Tool Call Box ── */
     .tool-call-box {
-        background: rgba(30,30,58,0.7); border-left: 3px solid #6c5ce7;
-        border-radius: 6px; padding: 0.6rem 1rem; margin: 0.5rem 0;
-        font-size: 0.85rem; color: #a0a0cc;
+        background: linear-gradient(135deg, rgba(20, 20, 50, 0.8), rgba(30, 25, 60, 0.6));
+        border-left: 3px solid #6c5ce7;
+        border-radius: 10px;
+        padding: 0.7rem 1.2rem;
+        margin: 0.5rem 0;
+        font-size: 0.85rem;
+        color: #b0b0d0;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(108, 92, 231, 0.12);
+        transition: all 0.3s ease;
+        animation: toolSlideIn 0.4s ease-out;
+    }
+    .tool-call-box:hover {
+        border-color: rgba(108, 92, 231, 0.3);
+        box-shadow: 0 0 16px rgba(108, 92, 231, 0.08);
+    }
+    @keyframes toolSlideIn {
+        from { opacity: 0; transform: translateX(-10px); }
+        to { opacity: 1; transform: translateX(0); }
     }
 
+    /* ── Agent Badges ── */
     .agent-badge {
-        display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px;
-        font-size: 0.75rem; font-weight: 600; margin-right: 0.5rem;
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+        letter-spacing: 0.02em;
+        transition: all 0.3s ease;
+        animation: badgePop 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
     }
-    .agent-badge.search { background: rgba(0,184,148,0.2); color: #00b894; }
-    .agent-badge.reader { background: rgba(108,92,231,0.2); color: #a29bfe; }
-    .agent-badge.writer { background: rgba(231,76,60,0.2); color: #e74c3c; }
-    .agent-badge.supervisor { background: rgba(253,203,110,0.2); color: #fdcb6e; }
+    @keyframes badgePop {
+        0% { transform: scale(0.8); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    .agent-badge:hover { transform: translateY(-1px); }
+    .agent-badge.search {
+        background: linear-gradient(135deg, rgba(0,184,148,0.15), rgba(0,184,148,0.08));
+        color: #00b894;
+        border: 1px solid rgba(0,184,148,0.2);
+    }
+    .agent-badge.reader {
+        background: linear-gradient(135deg, rgba(108,92,231,0.15), rgba(162,155,254,0.08));
+        color: #a29bfe;
+        border: 1px solid rgba(162,155,254,0.2);
+    }
+    .agent-badge.writer {
+        background: linear-gradient(135deg, rgba(253,121,168,0.15), rgba(253,121,168,0.08));
+        color: #fd79a8;
+        border: 1px solid rgba(253,121,168,0.2);
+    }
+    .agent-badge.supervisor {
+        background: linear-gradient(135deg, rgba(253,203,110,0.15), rgba(253,203,110,0.08));
+        color: #fdcb6e;
+        border: 1px solid rgba(253,203,110,0.2);
+    }
 
+    /* ── Legend Items ── */
     .legend-item {
-        display: inline-block; margin: 0.3rem 0.5rem; padding: 0.3rem 0.6rem;
-        border-radius: 8px; font-size: 0.8rem;
+        display: inline-block;
+        margin: 0.3rem 0.5rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 10px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        transition: transform 0.2s ease;
+    }
+    .legend-item:hover { transform: scale(1.05); }
+
+    /* ── Info Cards ── */
+    .info-card {
+        background: linear-gradient(135deg, rgba(15, 15, 40, 0.8), rgba(20, 20, 50, 0.6));
+        border: 1px solid rgba(108, 92, 231, 0.12);
+        border-radius: 14px;
+        padding: 1.2rem 1.5rem;
+        margin: 0.5rem 0;
+        backdrop-filter: blur(10px);
+        transition: all 0.3s ease;
+    }
+    .info-card:hover {
+        border-color: rgba(108, 92, 231, 0.25);
+        box-shadow: 0 4px 20px rgba(108, 92, 231, 0.06);
+        transform: translateY(-1px);
+    }
+    .info-card h4 {
+        color: #a29bfe;
+        margin: 0 0 0.4rem 0;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+    .info-card p {
+        color: #8888aa;
+        margin: 0;
+        font-size: 0.85rem;
+        line-height: 1.5;
     }
 
-    section[data-testid="stSidebar"] { background: linear-gradient(180deg, #12122a 0%, #1a1a35 100%); }
+    /* ── Buttons ── */
+    .stButton > button {
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.88rem;
+        letter-spacing: 0.01em;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid rgba(108, 92, 231, 0.2);
+    }
+    .stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 16px rgba(108, 92, 231, 0.15);
+    }
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+        color: white;
+        border: none;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #5b4bd5, #8b7cf0);
+        box-shadow: 0 4px 20px rgba(108, 92, 231, 0.3);
+    }
+
+    /* ── Inputs ── */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea {
+        background: rgba(15, 15, 35, 0.6) !important;
+        border: 1px solid rgba(108, 92, 231, 0.15) !important;
+        border-radius: 10px !important;
+        color: #d0d0f0 !important;
+        transition: border-color 0.3s ease !important;
+    }
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus {
+        border-color: rgba(108, 92, 231, 0.4) !important;
+        box-shadow: 0 0 12px rgba(108, 92, 231, 0.1) !important;
+    }
+
+    /* ── Chat Input ── */
+    .stChatInput > div {
+        border-radius: 14px !important;
+        border: 1px solid rgba(108, 92, 231, 0.15) !important;
+        background: rgba(12, 12, 30, 0.8) !important;
+    }
+    .stChatInput > div:focus-within {
+        border-color: rgba(108, 92, 231, 0.4) !important;
+        box-shadow: 0 0 20px rgba(108, 92, 231, 0.08) !important;
+    }
+
+    /* ── Chat Messages ── */
+    .stChatMessage {
+        border-radius: 14px !important;
+        border: 1px solid rgba(108, 92, 231, 0.06) !important;
+        background: rgba(15, 15, 35, 0.4) !important;
+        padding: 1rem !important;
+        animation: messageSlide 0.4s ease-out;
+    }
+    @keyframes messageSlide {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Metrics ── */
+    [data-testid="stMetric"] {
+        background: linear-gradient(135deg, rgba(15, 15, 40, 0.8), rgba(20, 20, 55, 0.5));
+        border: 1px solid rgba(108, 92, 231, 0.12);
+        border-radius: 14px;
+        padding: 1rem;
+        transition: all 0.3s ease;
+    }
+    [data-testid="stMetric"]:hover {
+        border-color: rgba(108, 92, 231, 0.25);
+        box-shadow: 0 0 20px rgba(108, 92, 231, 0.08);
+    }
+    [data-testid="stMetricValue"] {
+        color: #a29bfe;
+        font-weight: 700;
+    }
+
+    /* ── Expander ── */
+    .stExpander {
+        border: 1px solid rgba(108, 92, 231, 0.1) !important;
+        border-radius: 12px !important;
+        background: rgba(12, 12, 30, 0.5) !important;
+    }
+
+    /* ── Selectbox & Radio ── */
+    .stSelectbox > div > div,
+    .stRadio > div {
+        background: rgba(15, 15, 35, 0.5) !important;
+        border-radius: 10px !important;
+    }
+
+    /* ── Download Buttons ── */
+    .stDownloadButton > button {
+        background: linear-gradient(135deg, rgba(15, 15, 40, 0.8), rgba(25, 25, 55, 0.6));
+        border: 1px solid rgba(108, 92, 231, 0.15);
+        border-radius: 10px;
+        color: #b0b0d0;
+        transition: all 0.3s ease;
+    }
+    .stDownloadButton > button:hover {
+        border-color: rgba(108, 92, 231, 0.35);
+        background: linear-gradient(135deg, rgba(20, 20, 50, 0.9), rgba(30, 30, 65, 0.7));
+        box-shadow: 0 4px 16px rgba(108, 92, 231, 0.1);
+        transform: translateY(-1px);
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(10, 10, 25, 0.5); }
+    ::-webkit-scrollbar-thumb {
+        background: rgba(108, 92, 231, 0.3);
+        border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(108, 92, 231, 0.5); }
+
+    /* ── Spinner ── */
+    .stSpinner > div {
+        border-color: #6c5ce7 !important;
+    }
+
+    /* ── Dividers ── */
+    hr {
+        border-color: rgba(108, 92, 231, 0.1) !important;
+    }
+
+    /* ── Hide defaults ── */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+    header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -286,20 +596,17 @@ with st.sidebar:
     st.markdown("### 🛠️ Agent Tools")
     if agent_mode == "multi":
         st.markdown("""
-        **🔍 Search Agent:** arXiv, Semantic Scholar, Web
-        **📖 Reader Agent:** PDF Reader, Summarizer
-        **✍️ Writer Agent:** LaTeX PDF Generator
-        **🧑‍💼 Supervisor:** Coordinates all agents
-        """)
+<div class="info-card"><h4>🔍 Search Agent</h4><p>arXiv · Semantic Scholar · Web Search</p></div>
+<div class="info-card"><h4>📖 Reader Agent</h4><p>PDF Reader · Summarizer · RAG Store</p></div>
+<div class="info-card"><h4>✍️ Writer Agent</h4><p>LaTeX PDF · Quality Scorer · Lit Tables</p></div>
+<div class="info-card"><h4>🧑‍💼 Supervisor</h4><p>Routes requests to the right specialist</p></div>
+        """, unsafe_allow_html=True)
     else:
         st.markdown("""
-        - 🔍 arXiv Search
-        - 🎓 Semantic Scholar
-        - 🌐 Web Search
-        - 📖 PDF Reader
-        - ✍️ Paper Summarizer
-        - 📄 LaTeX PDF Generator
-        """)
+<div class="info-card"><h4>🔍 Search</h4><p>arXiv · Semantic Scholar · Web</p></div>
+<div class="info-card"><h4>📖 Read & Analyze</h4><p>PDF Reader · Summarizer · RAG Store</p></div>
+<div class="info-card"><h4>✍️ Write & Export</h4><p>LaTeX PDF · Quality Scorer · Lit Tables</p></div>
+        """, unsafe_allow_html=True)
 
     # ── Export ──
     if st.session_state.chat_history:
@@ -357,8 +664,8 @@ with st.sidebar:
 # ─── Main Content ───
 st.markdown("""
 <div class="main-header">
-    <h1>📄 AI Research Agent</h1>
-    <p>Multi-agent AI that searches arXiv, Semantic Scholar & the web — then writes publication-ready research</p>
+    <h1>🔬 AI Research Agent</h1>
+    <p>Search arXiv & Semantic Scholar · Read & Summarize Papers · RAG Knowledge Base · Write Publication-Ready LaTeX</p>
 </div>
 """, unsafe_allow_html=True)
 
