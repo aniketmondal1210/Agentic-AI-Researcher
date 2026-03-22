@@ -146,7 +146,3 @@ Open **http://localhost:8501** in your browser.
 This project is for **educational purposes only**.
 
 ---
-
-## 🙏 Acknowledgments
-
-Inspired by [AIwithhassan/ai-researcher](https://github.com/AIwithhassan/ai-researcher).
