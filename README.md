@@ -27,8 +27,8 @@ User ──► Streamlit Chat UI ──► Langgraph ReAct Agent ──► Tools
                 │                      │                    ├── arXiv Search
                 │                      │                    ├── Semantic Scholar
                 │                      │                    ├── Web Search (DuckDuckGo)
-           LLM Selector               ▼                    ├── PDF Reader
-          (Gemini/Groq/          LLM Provider               └── LaTeX PDF Writer
+           LLM Selector                ▼                    ├── PDF Reader
+          (Gemini/Groq/           LLM Provider              └── LaTeX PDF Writer
            OpenAI)
 ```
 
