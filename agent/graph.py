@@ -54,7 +54,7 @@ def get_model(provider: str = "gemini", model_name: str = None, bind: bool = Tru
         LLM instance, optionally bound with tools
     """
     if provider == "gemini":
-        name = model_name or "gemini-3-flash-preview"
+        name = model_name or "gemini-2.0-flash"
         model = ChatGoogleGenerativeAI(
             model=name,
             api_key=os.getenv("GOOGLE_API_KEY"),

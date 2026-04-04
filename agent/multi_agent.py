@@ -130,7 +130,7 @@ Be constructive and specific in your feedback."""
 def _get_model(provider: str = "gemini", model_name: str = None):
     """Create an LLM instance."""
     if provider == "gemini":
-        name = model_name or "gemini-3-flash-preview"
+        name = model_name or "gemini-2.0-flash"
         return ChatGoogleGenerativeAI(
             model=name,
             api_key=os.getenv("GOOGLE_API_KEY"),

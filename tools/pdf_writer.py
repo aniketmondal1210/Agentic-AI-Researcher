@@ -17,18 +17,21 @@ def render_latex_pdf(latex_content: str) -> str:
     Returns:
         Path to the generated PDF document
     """
-    if shutil.which("tectonic") is None:
-        raise RuntimeError(
-            "tectonic is not installed. Install it first on your system. "
-            "Visit: https://tectonic-typesetting.github.io/en-US/install.html"
+    if shutil.which("tectonic"):
+        compiler = "tectonic"
+    elif shutil.which("pdflatex"):
+        compiler = "pdflatex"
+    else:
+        return (
+            "Error: Neither tectonic nor pdflatex is installed on this server. "
+            "The LaTeX content has been prepared but cannot be compiled to PDF in this environment. "
         )
 
     try:
-        # Create output directory
+        # Generate output directory and files
         output_dir = Path("output").absolute()
         output_dir.mkdir(exist_ok=True)
 
-        # Setup filenames with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         tex_filename = f"paper_{timestamp}.tex"
         pdf_filename = f"paper_{timestamp}.pdf"
@@ -37,9 +40,14 @@ def render_latex_pdf(latex_content: str) -> str:
         tex_file = output_dir / tex_filename
         tex_file.write_text(latex_content)
 
-        # Compile to PDF using tectonic
+        if compiler == "tectonic":
+            args = ["tectonic", tex_filename, "--outdir", str(output_dir)]
+        else:
+            args = ["pdflatex", "-interaction=nonstopmode", "-output-directory", str(output_dir), tex_filename]
+        
+        # Compile to PDF
         result = subprocess.run(
-            ["tectonic", tex_filename, "--outdir", str(output_dir)],
+            args,
             cwd=output_dir,
             capture_output=True,
             text=True,
@@ -48,7 +56,7 @@ def render_latex_pdf(latex_content: str) -> str:
         final_pdf = output_dir / pdf_filename
         if not final_pdf.exists():
             raise FileNotFoundError(
-                f"PDF file was not generated. Tectonic output:\n"
+                f"PDF file was not generated. {compiler} output:\n"
                 f"stdout: {result.stdout}\nstderr: {result.stderr}"
             )
 
