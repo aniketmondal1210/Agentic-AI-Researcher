@@ -21,18 +21,9 @@ def _get_collection():
     import chromadb
     from chromadb.utils import embedding_functions
 
-    # Use Google's embedding or fall back to default
-    api_key = os.getenv("GOOGLE_API_KEY", "")
-    if api_key and api_key != "your_google_api_key_here":
-        try:
-            _embed_fn = embedding_functions.GoogleGenerativeAiEmbeddingFunction(
-                api_key=api_key,
-                model_name="models/text-embedding-004",
-            )
-        except Exception:
-            _embed_fn = embedding_functions.DefaultEmbeddingFunction()
-    else:
-        _embed_fn = embedding_functions.DefaultEmbeddingFunction()
+    # Use local DefaultEmbeddingFunction (no API key needed, works everywhere)
+    # GoogleGenerativeAiEmbeddingFunction uses v1beta which doesn't support text-embedding-004
+    _embed_fn = embedding_functions.DefaultEmbeddingFunction()
 
     client = chromadb.Client()  # In-memory for simplicity
     _collection = client.get_or_create_collection(

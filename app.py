@@ -426,6 +426,9 @@ with st.sidebar:
                         if len(text) > 80000:
                             text = text[:80000]
 
+                        # Mark as processed FIRST to prevent infinite retry loop on error
+                        st.session_state.uploaded_papers.append(uploaded_file.name)
+
                         # Store in RAG
                         from tools.rag_store import store_paper_in_rag
                         paper_title = uploaded_file.name.replace(".pdf", "").replace("_", " ").replace("-", " ")
@@ -434,8 +437,6 @@ with st.sidebar:
                             "paper_title": paper_title,
                             "paper_url": f"uploaded:{uploaded_file.name}",
                         })
-
-                        st.session_state.uploaded_papers.append(uploaded_file.name)
                         logger.info(f"Indexed uploaded paper: {uploaded_file.name} ({len(text)} chars)")
 
                     except Exception as e:
